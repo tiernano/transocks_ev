@@ -136,7 +136,7 @@ void endpoint_remove (struct endpoint *ep) {
 void client_verror (struct proxy_con *con, int level, const char *msg, va_list args) {
   if (loglevel < level)
     return;
-  fprintf (stderr, "connection %d: ", con->id);
+  fprintf (stderr, "%d,", con->id);
   vfprintf (stderr, msg, args);
   fprintf (stderr, "\n");
 }
@@ -170,7 +170,7 @@ void client_remove (struct proxy_con *con, const char *msg, ...) {
     svr_rate = con->ep[EI_SERVER].octets / secs / 1024;
     client_rate = con->ep[EI_CLIENT].octets / secs / 1024;
 
-    client_error (con, 1, "closed after %.2f seconds, %"PRIu64" octets written to server (%.2f kb/s), %"PRIu64" octets written to client (%.2f kb/s)", secs, con->ep[EI_SERVER].octets, svr_rate, con->ep[EI_CLIENT].octets, client_rate);
+    client_error (con, 1, "c;%.2f;%"PRIu64";%.2f;%"PRIu64"%.2f", secs, con->ep[EI_SERVER].octets, svr_rate, con->ep[EI_CLIENT].octets, client_rate);
   }
 
   endpoint_remove (&con->ep[EI_CLIENT]); 
