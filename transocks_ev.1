@@ -1,0 +1,109 @@
+
+.TH TRANSOCKS_EV 1 "" "tranSOCKS_ev"
+.\" -----------------------------------------------------------------
+.\" * Define some portability stuff
+.\" -----------------------------------------------------------------
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.\" http://bugs.debian.org/507673
+.\" http://lists.gnu.org/archive/html/groff/2009-02/msg00013.html
+.\" ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.ie \n(.g .ds Aq \(aq
+.el       .ds Aq '
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.SH "NAME"
+transocks_ev \- libevent\-based, non\-forking and transparent SOCKS5\-Proxy
+.SH "SYNOPSIS"
+.HP \w'\fBtransocks_ev\fR\ 'u
+\fBtransocks_ev\fR [-f] [-t] [-v] [-p PORT] [-H IP] [-s PORT] -S IP [-c TIMEOUT] [-u USER-ID] [-g GROUP-ID] [-P PID-FILE]
+.HP \w'\fBtransocks_ev\ \-h\fR\ 'u
+\fBtransocks_ev \-h\fR
+.SH "DESCRIPTION"
+tranSOCKS_ev is a transparent socks proxy, inspired by the idea of transocks (http://transocks\&.sourceforge\&.net)\&.
+.PP
+In some cases you might redirect TCP/IP\-Traffic on your network\-router trough a transparent SOCKS\-Proxy\&. tranSOCKS_ev is a user\-space daemon for linux that does this job perfectly based on iptable\-filter\-rules\&.
+.PP
+tranSOCKS_ev depends on iptables (as available in most current linux\-distributions) to redirect all traffic that should be proxied to the transparent proxy\&. You will need to setup your firewall on your own because nobody can guess your special needs\&.
+.SH "OPTIONS"
+\fB\-h\fR
+.RS 3
+Display a short help message and exit\&.
+.RE
+.PP
+\fB\-f\fR
+.RS 3
+Keep the application in foreground\&.
+.RE
+.PP
+\fB\-t\fR
+.RS 3
+Pass through connections through if SOCKS5-Server down
+.RE
+.PP
+\fB\-v\fR
+.RS 3
+Increase verbosity (may be used multiple times)
+.RE
+.PP
+\fB\-p\fR PORT
+.RS 3
+The local port where tranSOCKS_ev should listen for incoming connections\&.
+.RE
+.PP
+\fB\-H\fR IP
+.RS 3
+The local IP\-Address where tranSOCKS_ev should bind to\&.
+.RE
+.PP
+\fB\-s\fR PORT
+.RS 3
+The Port of your SOCKS5\-Server\&.
+.RE
+.PP
+\fB\-S\fR IP
+.RS 3
+The IP\-Address of your SOCKS5\-Server\&.
+.RE
+.PP
+\fB\-c\fR TIMEOUT
+.RS 3
+Timeout connections to SOCKS5-Server after this amount of seconds
+.RE
+.PP
+\fB\-u\fR USER-ID
+.RS 3
+Drop privileges to this User ID
+.RE
+.PP
+\fB\-g\fR GROUP-ID
+.RS 3
+Drop privileges to this Group ID
+.RE
+.PP
+\fB\-P\fR PID-FILE
+.RS 3
+Write PID-File to this location
+.RE
+.PP
+.SH "LICENSE"
+tranSOCKS_ev is distributed within the terms of creative commons attribution\-share alike 3\&.0\&.
+.SH "AUTHORS"
+Bernd Holzmüller <bernd@tiggerswelt\&.net>
+.br
+Chase Venters <chase.venters@gmail.com>
+.br
+Silas S. Brown
+.br
+Toni Spets
+.br
+Karsten N.
+.SH "SEE ALSO"
+http://oss\&.tiggerswelt\&.net
