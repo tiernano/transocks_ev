@@ -2,22 +2,23 @@
  * tranSOCKS_ev
  * ------------
  * libevent-based non-forking transparent SOCKS5-Proxy
- * 
+ *
  * This is mainly inspired by transocks, available at
  * http://transocks.sourceforge.net/ and written by
  * Mike Fisk <mefisk@gmail.com>.
- * 
+ *
  * This work is distributed within the terms of
  * creative commons attribution-share alike 3.0 germany
- * 
+ *
  * See http://creativecommons.org/licenses/by-sa/3.0/ for more information
- * 
+ *
+ * @author Tiernan OToole <tiernan@tiernanotoole.ie> (working on loggin to automated format)
  * @author Bernd Holzmueller <bernd@tiggerswelt.net>
  * @author Chase Venters <chase.venters@gmail.com> (Performance/reliability enhancements, DNS, logging)
  * @author Silas S. Brown (Fix for crash using newer GCC)
  * @author Toni Spets (Pass-trough, privilege-dropping, pid-file)
  * @author Karsten N. (initial man-page)
- * @revision 07
+ * @revision 08 (copied to github also at https://github.com/tiernano/transocks_ev)
  * @license http://creativecommons.org/licenses/by-sa/3.0/de/ Creative Commons Attribution-Share Alike 3.0 Germany
  * @homepage http://oss.tiggerswelt.net/transocks_ev/
  * @copyright Copyright &copy; 2015 tiggersWelt.net (and others, see above)
@@ -166,16 +167,16 @@ void client_remove (struct proxy_con *con, const char *msg, ...) {
     /* compute statistics */
     clock_gettime (CLOCK_MONOTONIC, &now);
     ts_subtract (&now, &con->conn_time, &interval);
-    secs = interval.tv_sec + (1.0 * interval.tv_nsec / 1000000000L); 
+    secs = interval.tv_sec + (1.0 * interval.tv_nsec / 1000000000L);
     svr_rate = con->ep[EI_SERVER].octets / secs / 1024;
     client_rate = con->ep[EI_CLIENT].octets / secs / 1024;
 
-    client_error (con, 1, "c;%.2f;%"PRIu64";%.2f;%"PRIu64"%.2f", secs, con->ep[EI_SERVER].octets, svr_rate, con->ep[EI_CLIENT].octets, client_rate);
+    client_error (con, 1, "CC;%.2f;%"PRIu64";%.2f;%"PRIu64"%.2f", secs, con->ep[EI_SERVER].octets, svr_rate, con->ep[EI_CLIENT].octets, client_rate);
   }
 
-  endpoint_remove (&con->ep[EI_CLIENT]); 
-  endpoint_remove (&con->ep[EI_SERVER]); 
-  
+  endpoint_remove (&con->ep[EI_CLIENT]);
+  endpoint_remove (&con->ep[EI_SERVER]);
+
   event_del (&con->connect_timeout);
 
   free (con);
@@ -191,7 +192,7 @@ void client_shutdown_wr (struct proxy_con *con, int ep) {
   struct endpoint *epp = &con->ep[ep];
   struct endpoint *opp = &con->ep[(ep + 1) & 1];
 
-  client_error (con, 3, "shutting down writing to %s", endpoint_name (ep));
+  client_error (con, 3, "SD:%s", endpoint_name (ep));
   shutdown (epp->fd, SHUT_WR);
   shutdown (opp->fd, SHUT_RD);
   epp->flags |= EP_SHUT_WR;
@@ -231,7 +232,7 @@ static void be_rdy_read (struct bufferevent *ev, void *arg) {
 
 static void be_rdy_write (struct bufferevent *ev, void *arg) {
   BE_ARGS;
-  
+
   /* if we are done flushing the socket, shut it down now */
   if (epp->flags & EP_PENDING_SHUTDOWN) {
     client_shutdown_wr (con, ep);
@@ -256,7 +257,7 @@ static void be_error (struct bufferevent *ev, short what, void *arg) {
   /* pre-connect processing */
   if (con->status != SOCKS5_CONNECTED && ep == EI_SERVER) {
     if (passthrough) {
-      client_error (con, 1, "SOCKS5 server down, fallback to pass-through");
+      client_error (con, 1, "PT");
 
       /* remove old SOCKS server endpoint */
       bufferevent_disable (con->ep[EI_SERVER].ev, EV_READ);
@@ -269,7 +270,7 @@ static void be_error (struct bufferevent *ev, short what, void *arg) {
 
     if (errnum == 0)
       return client_remove (con, "SOCKS5 server hung up");
-    else 
+    else
       return client_remove (con, "SOCKS5 server error before fully connected: %s (%d)", strerror (errnum), errnum);
   }
 
@@ -277,7 +278,7 @@ static void be_error (struct bufferevent *ev, short what, void *arg) {
   if (what & (EVBUFFER_EOF | EVBUFFER_ERROR)) {
     if (what & EVBUFFER_READ) {
       if (opp->flags & EP_SHUT_WR)
-        extrabuf [0] = 0; 
+        extrabuf [0] = 0;
       else
         sprintf (extrabuf, ", pending shutdown for %s write", endpoint_name (op));
       client_error (con, 3, "shutting down read for %s%s", endpoint_name (ep), extrabuf);
@@ -374,19 +375,19 @@ static void svr_rdy_read (struct bufferevent *ev, void *arg) {
       if (buffer [0] != 0x05) {
         return client_remove (con, "bad reply in SOCKS5 HELLO-State");
       }
-      
+
       /* Handle authentication */
       switch (buffer [1]) {
         case 0x00:	/* No authentication needed */
           break;
-        
+
         case 0xFF:	/* Our request were rejected */
         default:	/* Anything else is unsupported */
           return client_remove (con, "Unsupported authentication");
       }
-      
+
       char resp [10];
-      
+
       resp [0] = 0x05; /* We are SOCKS5 */
       resp [1] = 0x01; /* Create a TCP-Connection */
       resp [2] = 0x00;
@@ -397,16 +398,16 @@ static void svr_rdy_read (struct bufferevent *ev, void *arg) {
       resp [7] = (con->dest.sin_addr.s_addr >> 24);
       resp [8] = con->dest.sin_port & 0xff; /* 2-Byte Port-Number */
       resp [9] = con->dest.sin_port >> 8;
-      
+
       if (bufferevent_write (epp->ev, resp, 10) != 0)
         return client_remove (con, "unable to transmit SOCKS5 request");
 
       client_error (con, 2, "sent SOCKS5 request");
-      
+
       /* Switch to connect state */
       con->status = SOCKS5_CONNECT;
       bufferevent_setwatermark (epp->ev, EV_READ, 7, READ_BUFFER);
-      
+
       break;
     case SOCKS5_CONNECT:
       len = bufferevent_read (epp->ev, buffer, READ_BUFFER);
@@ -417,19 +418,19 @@ static void svr_rdy_read (struct bufferevent *ev, void *arg) {
       if (buffer [0] != 0x05) {
         return client_remove (con, "bad reply in SOCKS5 CONNECT-State");
       }
-      
+
       /* Check for success */
       if (buffer [1] != 0x00) {
         return client_remove (con, "SOCKS5 Connection failed with reason %d", buffer [1]);
-      } 
+      }
 
       /* Consume the rest of the SOCKS5 response */
       con->status = SOCKS5_CONSUME;
-      if (buffer [3] == 0x01) 
+      if (buffer [3] == 0x01)
         blen = 4;
-      else if (buffer [3] = 0x03) 
+      else if (buffer [3] = 0x03)
         blen = buffer [7];
-      else if (buffer [3] = 0x04) 
+      else if (buffer [3] = 0x04)
         blen = 16;
 
       /* Figure out if we have the data we need to consume, if we have excess
@@ -471,11 +472,11 @@ static void svr_rdy_read (struct bufferevent *ev, void *arg) {
 
       /* Cancel timeout */
       event_del (&con->connect_timeout);
-      
+
       break;
     default:
       abort();
-  } 
+  }
 }
 
 static void be_setcb_connect (struct bufferevent *ev, struct proxy_con *con) {
@@ -535,7 +536,7 @@ void start_socks (struct proxy_con *con) {
   if (fd_server < 0)
     return client_remove (con, "socket failed: %s (%d)", strerror(errno), errno);
 
-  /* change sockets to non-blocking mode */ 
+  /* change sockets to non-blocking mode */
   if (nonblock (fd_server, 1) != 0)
     return client_remove (con, "nonblock failed: %s (%d)", strerror(errno), errno);
 
@@ -546,14 +547,14 @@ do_connect:
       goto do_connect;
     else if (errno == EINPROGRESS)
       /* nothing */;
-    else 
+    else
       return client_remove (con, "connect failed: %s (%d)", strerror(errno), errno);
   }
 
   /* Setup events for this new connection */
   endpoint_init (con, EI_SERVER, fd_server);
   be_setcb_connect (con->ep[EI_SERVER].ev, con);
-  
+
   /* Submit a SOCKS5 Hello */
   con->status = SOCKS5_HELLO;
 
@@ -614,7 +615,7 @@ static void dns_done (int result, char type, int count, int ttl, void *addresses
   unsigned char c;
   int ret, i;
 
-  if (result != DNS_ERR_NONE) 
+  if (result != DNS_ERR_NONE)
     return client_remove (con, "DNS lookup failed: %s", evdns_err_to_string (result));
 
   if (type != EVDNS_TYPE_A)
@@ -627,7 +628,7 @@ static void dns_done (int result, char type, int count, int ttl, void *addresses
   if (count > 1 && randfd != -1) {
     ret = read (randfd, &c, 1);
     if (ret == 1) {
-      i = c % count;  
+      i = c % count;
     }
     else
       i = 0;
@@ -635,7 +636,7 @@ static void dns_done (int result, char type, int count, int ttl, void *addresses
   else
     i = 0;
 
-  socks_addr.sin_addr.s_addr = ((uint32_t *)addresses)[i]; 
+  socks_addr.sin_addr.s_addr = ((uint32_t *)addresses)[i];
   start_socks (con);
 }
 
@@ -644,8 +645,9 @@ void new_connection (int fd, short event, void *arg) {
   int fd_client;
   struct proxy_con *con;
   char dststr[INET6_ADDRSTRLEN + 32];
+  char srcstr[INET6_ADDRSTRLEN + 32];
   int len = 0;
-  
+
   /* Allocate memory for new structure */
   con = malloc (sizeof (struct proxy_con));
   if (con == 0) {
@@ -655,10 +657,10 @@ void new_connection (int fd, short event, void *arg) {
   bzero (con, sizeof (struct proxy_con));
   con->id = ++last_connid;
   clock_gettime (CLOCK_MONOTONIC, &con->conn_time);
-  
+
   /* Reschedule ourself */
   event_add (arg, NULL);
-  
+
   /* Accept incoming connection */
   memset (&client_addr, 0, sizeof(client_addr));
   if ((fd_client = accept (fd, (struct sockaddr *)&client_addr, &len)) <= 0) {
@@ -666,7 +668,7 @@ void new_connection (int fd, short event, void *arg) {
     return;
   }
 
-  con->ep[EI_CLIENT].fd = fd_client; 
+  con->ep[EI_CLIENT].fd = fd_client;
   con->ep[EI_SERVER].fd = -1;
 
   /* Set socket to nonblocking mode */
@@ -680,7 +682,9 @@ void new_connection (int fd, short event, void *arg) {
   }
 
   sockaddr_in_str (dststr, (struct sockaddr *)&con->dest);
-  client_error (con, 1, "-> %s", dststr);
+  sockaddr_in_str (srcstr, (struct sockaddr *)&con->src);
+
+  client_error (con, 1, "CO:%s,%s", srcstr, dststr);
 
   if (sockshost) {
     client_error (con, 3, "resolving SOCKS5 host %s in DNS", sockshost);
@@ -688,7 +692,7 @@ void new_connection (int fd, short event, void *arg) {
       client_error (con, 1, "failed to transmit DNS query for %s", sockshost);
       goto error;
     }
-  } else 
+  } else
     start_socks (con);
 
   return;
@@ -745,39 +749,39 @@ int main (int argc, char **argv) {
   int pid_fd = -1;
   int uid = 0;
   int gid = 0;
-  
+
   short bindport = 1211;
   char *bindhost = "0.0.0.0";
-  
+
   short socksport = 9050;
-  
+
   char c;
-  
+
   /* Parse the commandline */
   while ((c = getopt (argc, argv, "vfp:H:s:S:c:P:u:g:th")) != (char)EOF)
     switch (c) {
       case 'f': /* Keep in foreground */
         foreground = 1;
         break;
-      
+
       case 'p': /* Try to bind to this port */
         if (!(bindport = atoi (optarg))) {
           fprintf (stderr, "Invalid port %s\n", optarg);
           return 1;
         }
-        
+
         break;
-      
+
       case 'H': /* Try to bind to this IP */
         bindhost = optarg;
         break;
-      
+
       case 's': /* Use this port on the SOCKS5-Proxy */
         if (!(socksport = atoi (optarg))) {
           fprintf (stderr, "Invalid port %s\n", optarg);
           return 1;
         }
-        
+
         break;
 
       case 'c': /* Use this connection timeout */
@@ -785,13 +789,13 @@ int main (int argc, char **argv) {
           fprintf (stderr, "Invalid connection timeout %s\n", optarg);
           return 1;
         }
-        
+
         break;
 
       case 'v':
         loglevel++;
         break;
-      
+
       case 'S': /* Use this IP for the SOCKS5-Proxy */
         sockshost = optarg;
         break;
@@ -811,7 +815,7 @@ int main (int argc, char **argv) {
       case 't':
         passthrough = 1;
         break;
-      
+
       case 'h': /* Print help */
         printf ("tranSOCKS-ev - libevent-based transparent SOCKS5-Proxy\n");
         printf ("Usage: %s [-f] [-t] [-v] [-p port] [-H ip-address] [-s port] -S hostname [-c timeout] [-u uid] [-g gid] [-P file]\n\n", argv [0]);
@@ -827,7 +831,7 @@ int main (int argc, char **argv) {
         printf ("\t-P\tWrite PID-file to this location\n");
         printf ("\t-v\tVerbose operation (specify multiple times for additional verbosity)\n");
         printf ("\n");
-        
+
         return 0;
     }
 
@@ -835,7 +839,7 @@ int main (int argc, char **argv) {
     fprintf (stderr, "You must specify -S\n");
     return 1;
   }
-  
+
   /* Handle the forking stuff */
   if (foreground != 1) {
     /* Try to fork into background */
@@ -843,19 +847,19 @@ int main (int argc, char **argv) {
       perror("fork");
       return 1;
     }
-    
+
     /* Fork was successfull and we are the parent */
     if (foreground)
       return 0;
-    
+
     /* Close our filehandles */
     fclose (stdin);
     fclose (stdout);
     fclose (stderr);
-    
+
     setsid ();
     setpgrp ();
-    
+
     signal (SIGCHLD, SIG_IGN);
   }
 
@@ -879,7 +883,7 @@ int main (int argc, char **argv) {
       fprintf(stderr, "Failed to setuid(%d): %s (%d)\n", uid, strerror (errno), errno);
       return 1;
     }
-  
+
   /* it appears libevent bufferevent can cause a PIPE */
   signal (SIGPIPE, SIG_IGN);
 
@@ -887,37 +891,37 @@ int main (int argc, char **argv) {
   bzero (&socks_addr, sizeof (socks_addr));
   socks_addr.sin_family = AF_INET;
   socks_addr.sin_port = htons (socksport);
-  
+
   if (inet_pton (AF_INET, sockshost, &socks_addr.sin_addr.s_addr) > 0)
     sockshost = 0;
-  
+
   /* Create our server socket */
   if ((serverfd = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
     perror ("Could not create socket");
     return 1;
   }
-  
+
   bzero (&addr, sizeof (addr));
   addr.sin_family = AF_INET;
   addr.sin_port = htons (bindport);
-  
+
   if (inet_pton (AF_INET, bindhost, &addr.sin_addr.s_addr) <= 0) {
     perror ("Could not parse Host");
     return 1;
   }
-  
+
   setsockopt (serverfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof (on));
-  
+
   if (bind (serverfd, (struct sockaddr *)&addr, sizeof (addr)) < 0) {
     perror ("Could not bind our socket");
     return 1;
   }
-  
+
   if (listen (serverfd, SOMAXCONN) < 0) {
     perror ("listen failed");
     return 1;
   }
-  
+
   /* Setup Event-Handing */
   event_init ();
   if (sockshost != 0) {
@@ -925,17 +929,16 @@ int main (int argc, char **argv) {
     randfd = open ("/dev/urandom", O_RDONLY);
     if (randfd == -1)
       fprintf (stderr, "can't open /dev/urandom: %s (%d). continuing, but will not randomize dns replies.\n");
-  }    
- 
+  }
+
   event_set (&ev_server, serverfd, EV_READ, new_connection, &ev_server);
   event_add (&ev_server, NULL);
-  
+
   event_dispatch ();
 
   if (pid_fd > 0) {
     close(pid_fd);
   }
-  
+
   return 0;
 }
-
