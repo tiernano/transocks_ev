@@ -682,9 +682,8 @@ void new_connection (int fd, short event, void *arg) {
   }
 
   sockaddr_in_str (dststr, (struct sockaddr *)&con->dest);
-  sockaddr_in_str (srcstr, (struct sockaddr *)&con->src);
 
-  client_error (con, 1, "CO:%s,%s", srcstr, dststr);
+  client_error (con, 1, "CO:%s", dststr);
 
   if (sockshost) {
     client_error (con, 3, "resolving SOCKS5 host %s in DNS", sockshost);
